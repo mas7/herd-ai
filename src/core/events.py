@@ -40,7 +40,8 @@ class InProcessEventBus:
 
     def subscribe(self, event_type: str, handler: Handler) -> None:
         self._handlers[event_type].append(handler)
-        logger.debug("Subscribed %s to %s", handler.__qualname__, event_type)
+        handler_name = getattr(handler, "__qualname__", repr(handler))
+        logger.debug("Subscribed %s to %s", handler_name, event_type)
 
     def unsubscribe(self, event_type: str, handler: Handler) -> None:
         self._handlers[event_type].remove(handler)

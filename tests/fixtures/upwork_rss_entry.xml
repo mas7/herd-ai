@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sample Upwork RSS feed entry.
+  feedparser converts this to a dict with keys: title, link, description,
+  published, updated, summary, etc. The test uses a pre-parsed dict
+  representation, but this file documents the canonical XML structure.
+-->
+<rss version="2.0">
+  <channel>
+    <title>Upwork: Jobs matching Python FastAPI</title>
+    <link>https://www.upwork.com/ab/feed/jobs/rss?q=python+fastapi</link>
+    <description>Latest jobs matching your search</description>
+
+    <item>
+      <title><![CDATA[Django REST API Developer Needed — Hourly Contract]]></title>
+      <link>https://www.upwork.com/jobs/~02xyz789abc012de34</link>
+      <description><![CDATA[
+        <b>Django REST API Developer Needed — Hourly Contract</b><br/>
+        <b>Budget:</b> $40.00/hr - $60.00/hr<br/>
+        <b>Job Type:</b> Hourly<br/>
+        <b>Experience Level:</b> Intermediate<br/>
+        <br/>
+        We are looking for a Django REST Framework developer to extend our
+        existing API. Tasks include adding new endpoints, fixing bugs,
+        writing tests, and improving documentation.<br/>
+        <br/>
+        <b>Skills:</b> Python, Django, Django REST Framework, PostgreSQL, Docker<br/>
+        <b>Country:</b> Canada<br/>
+      ]]></description>
+      <pubDate>Fri, 13 Mar 2026 08:30:00 +0000</pubDate>
+      <guid isPermaLink="true">https://www.upwork.com/jobs/~02xyz789abc012de34</guid>
+    </item>
+
+  </channel>
+</rss>
