@@ -88,14 +88,19 @@ class Database:
             return
 
         sql = path.read_text()
+        # Strip inline -- comments before splitting on ";" so that comment text
+        # like "-- 'hourly' | 'fixed'; NULL when …" does not produce invalid fragments.
+        stripped_lines = []
+        for line in sql.splitlines():
+            comment_pos = line.find("--")
+            stripped_lines.append(line[:comment_pos] if comment_pos >= 0 else line)
+        clean_sql = "\n".join(stripped_lines)
+
         # Execute statements one by one so that idempotent ADD COLUMN migrations
         # (which fail with "duplicate column name" on fresh installs) can be skipped
         # without aborting the entire migration file.
-        for raw_stmt in sql.split(";"):
-            stmt = "\n".join(
-                ln for ln in raw_stmt.splitlines()
-                if ln.strip() and not ln.strip().startswith("--")
-            ).strip()
+        for raw_stmt in clean_sql.split(";"):
+            stmt = raw_stmt.strip()
             if not stmt:
                 continue
             try:

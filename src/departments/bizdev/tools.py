@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from src.core.config import UserProfile
     from src.departments.bizdev.positioning import Positioner
-    from src.departments.bizdev.pricing import BidPrice
     from src.models.bid import WinRecord
     from src.models.job import Job
     from src.models.score import CompositeScore
@@ -108,6 +107,10 @@ class BidStrategyTool(BaseTool):
     """
     Generate a positioning angle for a pre-loaded job bid.
 
+    Computes the BidPrice at run-time from the injected job/profile/score/
+    win_history so that the tool can be constructed before pricing runs —
+    matching the PricingAnalyst → BidStrategist crew sequence.
+
     Returns a JSON object with the positioning angle string.
     """
 
@@ -123,7 +126,7 @@ class BidStrategyTool(BaseTool):
     _job: Job
     _profile: UserProfile
     _score: CompositeScore
-    _bid_price: BidPrice
+    _win_history: list[WinRecord]
 
     def __init__(
         self,
@@ -131,23 +134,31 @@ class BidStrategyTool(BaseTool):
         job: Job,
         profile: UserProfile,
         score: CompositeScore,
-        bid_price: BidPrice,
+        win_history: list[WinRecord],
     ) -> None:
         super().__init__()
         self._positioner = positioner
         self._job = job
         self._profile = profile
         self._score = score
-        self._bid_price = bid_price
+        self._win_history = win_history
 
     def _run(self, **kwargs: object) -> str:
         return str(_run_async(self._arun(**kwargs)))
 
     async def _arun(self, **kwargs: object) -> str:
+        from src.departments.bizdev.pricing import compute_bid_price
+
+        bid_price = compute_bid_price(
+            job=self._job,
+            profile=self._profile,
+            score=self._score,
+            win_history=self._win_history,
+        )
         angle = await self._positioner.get_angle(
             job=self._job,
             profile=self._profile,
             score=self._score,
-            bid_price=self._bid_price,
+            bid_price=bid_price,
         )
         return json.dumps({"angle": angle})
