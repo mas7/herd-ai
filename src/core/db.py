@@ -88,7 +88,26 @@ class Database:
             return
 
         sql = path.read_text()
-        await self._conn.executescript(sql)  # issues implicit COMMIT before running
+        # Execute statements one by one so that idempotent ADD COLUMN migrations
+        # (which fail with "duplicate column name" on fresh installs) can be skipped
+        # without aborting the entire migration file.
+        for raw_stmt in sql.split(";"):
+            stmt = "\n".join(
+                ln for ln in raw_stmt.splitlines()
+                if ln.strip() and not ln.strip().startswith("--")
+            ).strip()
+            if not stmt:
+                continue
+            try:
+                await self._conn.execute(stmt)
+            except Exception as exc:
+                if "duplicate column name" in str(exc).lower():
+                    logger.debug(
+                        "Column already exists in %s, skipping: %s", name, stmt[:80]
+                    )
+                else:
+                    raise
+        await self._conn.commit()
 
         await self._conn.execute(
             "INSERT INTO schema_migrations (name) VALUES (?)", (name,)

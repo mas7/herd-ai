@@ -74,17 +74,10 @@ def _compute_hourly(
     profile_max = profile.hourly_rate_max
     profile_mid = (profile_min + profile_max) / 2.0
 
-    # Determine job's effective rate ceiling for viability check and base cap.
-    # Falls back to hourly_rate_min when no max is stated (e.g. "$80+/hr" listings).
-    job_max: float | None = None
-    if job.hourly_rate_max is not None:
-        job_max = float(job.hourly_rate_max)
-    elif job.hourly_rate_min is not None:
-        job_max = float(job.hourly_rate_min)
-
     # Hard bid ceiling — only when the client explicitly stated a maximum rate.
-    # hourly_rate_min alone is a client floor ("$X+/hr"), not a bid ceiling.
-    job_explicit_max: float | None = (
+    # hourly_rate_min alone means "$X+/hr": a client floor, not a bid ceiling.
+    # When only a minimum is given, job_max stays None and the profile ceiling governs.
+    job_max: float | None = (
         float(job.hourly_rate_max) if job.hourly_rate_max is not None else None
     )
 
@@ -101,10 +94,10 @@ def _compute_hourly(
             ),
         )
 
-    # Start at profile midpoint, cap at job ceiling
+    # Start at profile midpoint; cap below explicit ceiling to be competitive
     base = profile_mid
     if job_max is not None and job_max < base:
-        base = job_max * 0.95  # slightly below ceiling to be competitive
+        base = job_max * 0.95
 
     # Apply adjustments
     base *= _competition_discount(job.proposals_count)
@@ -118,9 +111,23 @@ def _compute_hourly(
     # Clamp to sensible range — never exceed the client's stated maximum rate
     floor = max(profile_min * 0.80, 1.0)
     ceiling = profile_max * 1.10
-    if job_explicit_max is not None:
-        ceiling = min(ceiling, job_explicit_max)
+    if job_max is not None:
+        ceiling = min(ceiling, job_max)
     amount = max(floor, min(ceiling, base))
+
+    # Guard: floor-ceiling inversion — job max falls between 75% and 80% of
+    # profile_min, so floor > ceiling and amount ends up above the stated cap.
+    if job_max is not None and amount > job_max:
+        return BidPrice(
+            bid_type="hourly",
+            amount=job_max,
+            rate_range=(job_max, job_max),
+            viable=False,
+            reasoning=(
+                f"Job ceiling ${job_max:.0f}/hr falls below the minimum viable rate "
+                f"${floor:.0f}/hr (80% of profile minimum ${profile_min:.0f}/hr) — not viable."
+            ),
+        )
 
     # Determine urgency-based rate range
     rate_floor = max(profile_min * 0.75, amount * 0.90)

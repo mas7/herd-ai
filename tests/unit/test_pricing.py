@@ -228,18 +228,33 @@ class TestComputeBidPriceHourly:
     def test_min_rate_only_does_not_cap_bid_above_it(self) -> None:
         """When only hourly_rate_min is set (e.g. '$80+/hr'), bids are NOT
         capped at the stated minimum — it is a client floor, not a bid ceiling.
-        The win-probability premium must be able to push the bid above it."""
+        job_max=None so base starts at profile_mid=90; win-prob premium pushes >80."""
         profile = _make_profile(min_rate=60.0, max_rate=120.0)
-        # profile_mid=90, job_max=80 < 90 → base = 80*0.95 = 76
-        # win_prob=90 → premium 1.08 → 76 * 1.08 = 82.08 > 80
         job = _make_job(
             job_type=JobType.HOURLY,
             hourly_rate_min=Decimal("80"),
             hourly_rate_max=None,
         )
+        # job_max=None → no ceiling clamp; profile_mid=90 * 1.08 premium = 97.2
         result = compute_bid_price(job, profile, _make_score(win_probability=90.0), [])
         assert result.viable is True
         assert result.amount > 80.0  # ceiling must NOT be clamped to the client's minimum
+
+    def test_floor_ceiling_inversion_is_not_viable(self) -> None:
+        """When job_max falls between 75%-80% of profile_min, the computed floor
+        exceeds the ceiling, causing amount > job_max.  Guard detects this and
+        returns viable=False rather than recommending an over-budget bid."""
+        profile = _make_profile(min_rate=60.0, max_rate=120.0)
+        # floor = 60*0.80 = 48; job_max=47 passes the 75% viability check (47 >= 45)
+        # but amount = max(48, min(47, base)) = 48 > 47 → must be not viable
+        job = _make_job(
+            job_type=JobType.HOURLY,
+            hourly_rate_min=None,
+            hourly_rate_max=Decimal("47"),
+        )
+        result = compute_bid_price(job, profile, _make_score(), [])
+        assert result.viable is False
+        assert result.bid_type == "hourly"
 
     def test_amount_clamped_to_floor(self) -> None:
         """Amount never goes below profile_min * 0.80."""
