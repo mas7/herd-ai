@@ -139,6 +139,13 @@ def _parse_posted_at(text: str) -> datetime:
         from datetime import timedelta
         return now - timedelta(minutes=int(match.group(1)))
 
+    # Attempt RFC 822 (common in RSS feeds, e.g. "Fri, 13 Mar 2026 08:30:00 +0000")
+    try:
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(text)
+    except (ValueError, TypeError):
+        pass
+
     # Attempt ISO parse
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -302,9 +309,13 @@ def parse_job_from_rss(entry: dict) -> Job:
     exp_match = re.search(r"(Entry Level|Intermediate|Expert)", plain, re.IGNORECASE)
     experience_level = _detect_experience_level(exp_match.group(1)) if exp_match else None
 
-    # Skills — listed after "Skills:" label in plain text
+    # Skills — listed after "Skills:" label, stop at the next known field label
     skills: list[str] = []
-    skills_match = re.search(r"Skills?:\s*([^\n]+)", plain, re.IGNORECASE)
+    skills_match = re.search(
+        r"Skills?:\s*(.+?)(?:\s+(?:Country|Budget|Category|Posted On|Hourly Range)\s*:|$)",
+        plain,
+        re.IGNORECASE,
+    )
     if skills_match:
         skills = [s.strip() for s in skills_match.group(1).split(",") if s.strip()]
 

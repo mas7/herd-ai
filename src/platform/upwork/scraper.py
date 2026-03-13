@@ -63,8 +63,9 @@ def _build_search_url(filters: JobFilter) -> str:
     params: list[str] = []
 
     if filters.keywords:
+        from urllib.parse import quote_plus
         query = " ".join(filters.keywords)
-        params.append(f"q={httpx.URL('', params={'q': query}).params}")
+        params.append(f"q={quote_plus(query)}")
 
     if filters.job_type == JobType.HOURLY:
         params.append("job_type=hourly")
@@ -160,7 +161,8 @@ class UpworkScraper:
 
     async def get_job_details(self, platform_job_id: str) -> Job:
         """Scrape a single job detail page by its Upwork job ID."""
-        url = f"{self._base_url}/jobs/~{platform_job_id}"
+        normalized_id = platform_job_id.lstrip("~")
+        url = f"{self._base_url}/jobs/~{normalized_id}"
         page = await self._context.new_page()
         try:
             await page.goto(url, wait_until="networkidle")
