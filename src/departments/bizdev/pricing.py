@@ -108,9 +108,11 @@ def _compute_hourly(
     if anchor is not None:
         base = base * 0.80 + anchor * 0.20
 
-    # Clamp to sensible range
+    # Clamp to sensible range — never exceed the client's stated ceiling
     floor = max(profile_min * 0.80, 1.0)
     ceiling = profile_max * 1.10
+    if job_max is not None:
+        ceiling = min(ceiling, job_max)
     amount = max(floor, min(ceiling, base))
 
     # Determine urgency-based rate range

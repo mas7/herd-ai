@@ -295,6 +295,18 @@ class TestComputeBidPriceHourly:
         low_history = compute_bid_price(job, profile, score, _wins("hourly", [48.0, 48.0]))
         assert low_history.amount <= no_history.amount
 
+    def test_amount_never_exceeds_client_ceiling_after_premium(self) -> None:
+        """Bid stays at or below client's stated max even with win-prob premium applied."""
+        profile = _make_profile(min_rate=60.0, max_rate=120.0)
+        job = _make_job(
+            job_type=JobType.HOURLY,
+            hourly_rate_max=Decimal("80"),  # tight ceiling
+        )
+        # High win probability would push above 80 without the ceiling clamp
+        result = compute_bid_price(job, profile, _make_score(win_probability=90.0), [])
+        assert result.viable is True
+        assert result.amount <= 80.0
+
     def test_rate_range_floor_le_ceil(self) -> None:
         profile = _make_profile(min_rate=60.0, max_rate=120.0)
         result = compute_bid_price(_make_job(job_type=JobType.HOURLY), profile, _make_score(), [])

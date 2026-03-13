@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS bid_strategies (
     decision    TEXT NOT NULL,          -- 'bid' | 'pass'
     bid_type    TEXT,                   -- 'hourly' | 'fixed'; NULL when decision='pass'
     bid_amount  REAL,                   -- NULL when decision='pass'
+    rate_floor  REAL,                   -- NULL when decision='pass'
+    rate_ceil   REAL,                   -- NULL when decision='pass'
+    urgency     TEXT,                   -- 'immediate'|'normal'|'low'; NULL when decision='pass'
     positioning_angle TEXT,             -- NULL when decision='pass'
     confidence  REAL NOT NULL,
     reasoning   TEXT NOT NULL,

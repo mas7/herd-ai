@@ -268,13 +268,20 @@ class TestBizDevSchedulerEventHandling:
         assert len(scheduler._inflight) == 0
 
     @pytest.mark.asyncio
-    async def test_skip_recommendation_does_not_create_task(self) -> None:
-        """Events with recommendation=skip bypass the bid pipeline."""
+    async def test_skip_recommendation_still_creates_task(self) -> None:
+        """Events with recommendation=skip must still enqueue a task so that
+        decide_bid() can persist the pass strategy and emit JobPassed."""
         scheduler = _make_scheduler()
         await scheduler.start()
+
+        async def _noop(job_id: str) -> None:
+            pass
+
+        scheduler._decide_and_handle_errors = _noop  # type: ignore[method-assign]
         event = JobScored(payload={"job_id": "some-job", "recommendation": "skip"})
         await scheduler._on_job_scored(event)
-        assert len(scheduler._inflight) == 0
+        assert len(scheduler._inflight) == 1
+        await asyncio.gather(*scheduler._inflight, return_exceptions=True)
 
     @pytest.mark.asyncio
     async def test_pursue_recommendation_creates_task(self) -> None:

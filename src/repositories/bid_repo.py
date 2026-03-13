@@ -33,12 +33,16 @@ logger = logging.getLogger(__name__)
 _INSERT_SQL = """
     INSERT INTO bid_strategies (
         id, job_id, decision, bid_type, bid_amount,
+        rate_floor, rate_ceil, urgency,
         positioning_angle, confidence, reasoning, pass_reason, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (job_id) DO UPDATE SET
         decision = excluded.decision,
         bid_type = excluded.bid_type,
         bid_amount = excluded.bid_amount,
+        rate_floor = excluded.rate_floor,
+        rate_ceil = excluded.rate_ceil,
+        urgency = excluded.urgency,
         positioning_angle = excluded.positioning_angle,
         confidence = excluded.confidence,
         reasoning = excluded.reasoning,
@@ -48,12 +52,21 @@ _INSERT_SQL = """
 
 
 def _strategy_to_row(strategy: BidStrategy) -> tuple:
+    rate_floor = (
+        float(strategy.rate_range[0]) if strategy.rate_range is not None else None
+    )
+    rate_ceil = (
+        float(strategy.rate_range[1]) if strategy.rate_range is not None else None
+    )
     return (
         str(uuid.uuid4()),
         strategy.job_id,
         "bid" if strategy.should_bid else "pass",
         strategy.bid_type,
         float(strategy.proposed_rate) if strategy.proposed_rate is not None else None,
+        rate_floor,
+        rate_ceil,
+        strategy.urgency,
         strategy.positioning_angle,
         strategy.confidence,
         strategy.reasoning,
@@ -74,15 +87,22 @@ def _row_to_strategy(row: dict) -> BidStrategy:
     should_bid = decision == "bid"
     proposed_rate = row.get("bid_amount")
     bid_type = row.get("bid_type")
+    rate_floor = row.get("rate_floor")
+    rate_ceil = row.get("rate_ceil")
+    rate_range = (
+        (Decimal(str(rate_floor)), Decimal(str(rate_ceil)))
+        if rate_floor is not None and rate_ceil is not None
+        else None
+    )
 
     return BidStrategy(
         job_id=JobId(row["job_id"]),
         should_bid=should_bid,
         bid_type=bid_type,  # type: ignore[arg-type]
         proposed_rate=Decimal(str(proposed_rate)) if proposed_rate is not None else None,
-        rate_range=None,   # not persisted — derived from amount at query time
+        rate_range=rate_range,
         positioning_angle=row.get("positioning_angle"),
-        urgency=None,      # not persisted — re-derived when needed
+        urgency=row.get("urgency"),  # type: ignore[arg-type]
         confidence=float(row["confidence"]),
         reasoning=row.get("reasoning") or "",
         pass_reason=row.get("pass_reason"),

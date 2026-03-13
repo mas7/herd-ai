@@ -123,10 +123,6 @@ class BizDevScheduler:
         if not job_id:
             logger.warning("job_scored event missing job_id payload")
             return
-        recommendation: str = event.payload.get("recommendation", "")
-        if recommendation in _PASS_RECOMMENDATIONS:
-            logger.debug("Job %s recommendation=%s — skipping bid pipeline", job_id, recommendation)
-            return
         task = asyncio.create_task(
             self._decide_and_handle_errors(job_id),
             name=f"bizdev-decide-{job_id[:8]}",
