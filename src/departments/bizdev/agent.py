@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from crewai import Agent
 
+from src.core.crewai import ToolOnlyLLM
 from src.departments.bizdev.tools import BidStrategyTool, PricingTool
 
 
@@ -37,6 +38,7 @@ def create_pricing_analyst(pricing_tool: PricingTool) -> Agent:
             "the project worth the freelancer's time."
         ),
         tools=[pricing_tool],
+        llm=ToolOnlyLLM(),
         verbose=False,
         allow_delegation=False,
         max_iter=3,
@@ -69,6 +71,7 @@ def create_bid_strategist(strategy_tool: BidStrategyTool) -> Agent:
             "for their project."
         ),
         tools=[strategy_tool],
+        llm=ToolOnlyLLM(),
         verbose=False,
         allow_delegation=False,
         max_iter=5,
