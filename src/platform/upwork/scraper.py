@@ -120,12 +120,16 @@ class UpworkScraper:
 
     async def search_jobs(self, filters: JobFilter) -> AsyncIterator[Job]:
         """
-        Yield Job objects from Upwork search results.
+        Return an async iterator of Job objects from Upwork search results.
 
-        Navigates the search results page, extracts all visible job tiles,
-        then yields each parsed Job. Paginates until no more results or
-        the recency filter would yield stale data.
+        Conforms to the JobScraper protocol: callers ``await`` this coroutine
+        to obtain an ``AsyncIterator[Job]``, then consume it with
+        ``async for``.
         """
+        return self._iter_search_jobs(filters)
+
+    async def _iter_search_jobs(self, filters: JobFilter) -> AsyncIterator[Job]:
+        """Paginated async generator that yields jobs from search results."""
         url = _build_search_url(filters)
         page = await self._context.new_page()
         try:
@@ -187,14 +191,18 @@ class UpworkScraper:
 
     async def search_jobs_via_rss(self, filters: JobFilter) -> AsyncIterator[Job]:
         """
-        Yield Jobs from Upwork's RSS feed — lightweight and connection-cheap.
+        Return an async iterator of Jobs from Upwork's RSS feed.
 
-        Uses httpx for a direct HTTP fetch rather than a full browser page,
-        which avoids most anti-bot friction for feed endpoints.
+        Lightweight and connection-cheap — uses httpx for a direct HTTP
+        fetch rather than a full browser page.
 
         Requires feedparser (optional dependency). If feedparser is not
         installed, raises ImportError with an actionable message.
         """
+        return self._iter_rss_jobs(filters)
+
+    async def _iter_rss_jobs(self, filters: JobFilter) -> AsyncIterator[Job]:
+        """Async generator that fetches and parses the RSS feed."""
         try:
             import feedparser  # type: ignore[import]
         except ImportError as exc:

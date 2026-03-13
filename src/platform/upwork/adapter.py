@@ -48,8 +48,7 @@ class UpworkAdapter:
 
     async def search_jobs(self, filters: JobFilter) -> AsyncIterator[Job]:
         """Delegate to the scraper's browser-based search."""
-        async for job in self._scraper.search_jobs(filters):
-            yield job
+        return await self._scraper.search_jobs(filters)
 
     async def get_job_details(self, platform_job_id: str) -> Job:
         """Delegate to the scraper's single-job page fetch."""

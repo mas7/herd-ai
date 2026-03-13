@@ -119,7 +119,7 @@ class PlatformSearchTool(BaseTool):
         )
 
         summaries: list[dict] = []
-        async for job in self._scraper.search_jobs(filters):
+        async for job in await self._scraper.search_jobs(filters):
             summaries.append({
                 "id": job.id,
                 "platform_job_id": job.platform_job_id,
