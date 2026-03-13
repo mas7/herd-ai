@@ -262,13 +262,10 @@ class TestSchedulerLifecycle:
         assert len(bus._handlers.get("job_discovered", [])) == 0
 
     @pytest.mark.asyncio
-    async def test_stop_without_start(self, scheduler: AnalystScheduler, bus: FakeEventBus) -> None:
-        """stop() before start() should not raise."""
-        # subscribe a dummy so unsubscribe doesn't fail
-        bus._handlers.setdefault("job_discovered", [])
-        # Just verifying no exception — stop on a never-started scheduler
-        # should be a no-op (unsubscribe may fail if never subscribed,
-        # but that's fine for this edge case).
+    async def test_stop_without_start(self, scheduler: AnalystScheduler) -> None:
+        """stop() before start() should be a safe no-op."""
+        await scheduler.stop()  # must not raise
+        assert not scheduler._running
 
 
 class TestSchedulerEventHandling:

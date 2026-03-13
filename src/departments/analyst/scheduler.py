@@ -103,6 +103,8 @@ class AnalystScheduler:
 
     async def stop(self) -> None:
         """Unsubscribe from events and wait for in-flight scoring tasks."""
+        if not self._running:
+            return
         self._running = False
         self._event_bus.unsubscribe("job_discovered", self._on_job_discovered)
         # Yield so already-queued handlers can run and register tasks
@@ -115,6 +117,9 @@ class AnalystScheduler:
             )
             done, _ = await asyncio.wait(self._inflight)
             self._inflight -= done
+            for task in done:
+                if not task.cancelled():
+                    task.exception()  # consume to prevent "Task exception was never retrieved"
         logger.info("AnalystScheduler stopped")
 
     async def _on_job_discovered(self, event: Event) -> None:
