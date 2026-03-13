@@ -115,6 +115,8 @@ class AnalystScheduler:
 
     async def _on_job_discovered(self, event: Event) -> None:
         """Handle a job_discovered event — enqueue scoring as a background task."""
+        if not self._running:
+            return
         job_id: str = event.payload.get("job_id", "")
         if not job_id:
             logger.warning("job_discovered event missing job_id payload")
