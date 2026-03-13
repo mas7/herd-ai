@@ -20,6 +20,7 @@ Schema expected (run migration 002 before use):
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from decimal import Decimal
@@ -159,27 +160,41 @@ async def list_bid_strategies(
     return [_row_to_strategy(row) for row in rows]
 
 
+_WIN_SQL = """
+    SELECT p.bid_amount, j.job_type, 1 AS was_won
+    FROM proposals p
+    JOIN jobs j ON j.id = p.job_id
+    WHERE j.job_type = ?
+      AND p.status = 'won'
+      AND p.bid_amount IS NOT NULL
+    ORDER BY p.created_at DESC
+    LIMIT 50
+"""
+
+_LOSS_SQL = """
+    SELECT p.bid_amount, j.job_type, 0 AS was_won
+    FROM proposals p
+    JOIN jobs j ON j.id = p.job_id
+    WHERE j.job_type = ?
+      AND p.status = 'lost'
+      AND p.bid_amount IS NOT NULL
+    ORDER BY p.created_at DESC
+    LIMIT 50
+"""
+
+
 async def get_win_history(db: Database, job_type: str) -> list[WinRecord]:
     """
     Retrieve historical bid outcomes from the proposals table.
 
-    Returns WinRecord entries for past proposals of the given job type,
-    used by the pricing engine to anchor bid amounts to proven winning rates.
+    Fetches up to 50 wins and 50 losses independently so that a long recent
+    loss streak cannot crowd out winning bids from the anchor sample.
     """
-    rows = await db.fetch_all(
-        """
-        SELECT p.bid_amount, j.job_type,
-               CASE WHEN p.status = 'won' THEN 1 ELSE 0 END AS was_won
-        FROM proposals p
-        JOIN jobs j ON j.id = p.job_id
-        WHERE j.job_type = ?
-          AND p.status IN ('won', 'lost')
-          AND p.bid_amount IS NOT NULL
-        ORDER BY p.created_at DESC
-        LIMIT 100
-        """,
-        (job_type,),
+    won_rows, lost_rows = await asyncio.gather(
+        db.fetch_all(_WIN_SQL, (job_type,)),
+        db.fetch_all(_LOSS_SQL, (job_type,)),
     )
+    rows = [*won_rows, *lost_rows]
     return [
         WinRecord(
             bid_amount=float(row["bid_amount"]),
