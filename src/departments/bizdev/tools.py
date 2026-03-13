@@ -66,6 +66,7 @@ class PricingTool(BaseTool):
         "scores. Returns JSON with bid_type, amount, rate_range, viable, reasoning."
     )
     args_schema: type[BaseModel] = PricingInput
+    result_as_answer: bool = True
 
     _job: Job
     _profile: UserProfile
@@ -121,6 +122,7 @@ class BidStrategyTool(BaseTool):
         "Returns JSON with angle string."
     )
     args_schema: type[BaseModel] = BidStrategyInput
+    result_as_answer: bool = True
 
     _positioner: Positioner
     _job: Job
