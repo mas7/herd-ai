@@ -63,9 +63,59 @@ class Database:
         await self._conn.commit()
 
     async def run_migration(self, migration_path: str | Path) -> None:
-        """Execute a SQL migration file."""
+        """Execute a SQL migration file, skipping if already applied."""
         path = Path(migration_path)
-        sql = path.read_text()
+        name = path.name
         assert self._conn is not None, "Database not connected"
-        await self._conn.executescript(sql)
-        logger.info("Migration applied: %s", path.name)
+
+        # Ensure tracking table exists
+        await self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name       TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        await self._conn.commit()
+
+        # Skip if already applied
+        cursor = await self._conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (name,)
+        )
+        if await cursor.fetchone():
+            logger.debug("Migration already applied, skipping: %s", name)
+            return
+
+        sql = path.read_text()
+        # Strip inline -- comments before splitting on ";" so that comment text
+        # like "-- 'hourly' | 'fixed'; NULL when …" does not produce invalid fragments.
+        stripped_lines = []
+        for line in sql.splitlines():
+            comment_pos = line.find("--")
+            stripped_lines.append(line[:comment_pos] if comment_pos >= 0 else line)
+        clean_sql = "\n".join(stripped_lines)
+
+        # Execute statements one by one so that idempotent ADD COLUMN migrations
+        # (which fail with "duplicate column name" on fresh installs) can be skipped
+        # without aborting the entire migration file.
+        for raw_stmt in clean_sql.split(";"):
+            stmt = raw_stmt.strip()
+            if not stmt:
+                continue
+            try:
+                await self._conn.execute(stmt)
+            except Exception as exc:
+                if "duplicate column name" in str(exc).lower():
+                    logger.debug(
+                        "Column already exists in %s, skipping: %s", name, stmt[:80]
+                    )
+                else:
+                    raise
+        await self._conn.commit()
+
+        await self._conn.execute(
+            "INSERT INTO schema_migrations (name) VALUES (?)", (name,)
+        )
+        await self._conn.commit()
+        logger.info("Migration applied: %s", name)
