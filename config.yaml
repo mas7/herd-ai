@@ -1,0 +1,64 @@
+herd:
+  name: "Herd Agency"
+  environment: "development"
+
+platforms:
+  active: ["upwork"]
+  upwork:
+    base_url: "https://www.upwork.com"
+    feed_poll_interval_seconds: 300
+    max_concurrent_browsers: 1
+    stealth_mode: true
+
+user_profile:
+  name: "${USER_DISPLAY_NAME}"
+  skills: ["Python", "Django", "FastAPI", "React", "TypeScript"]
+  hourly_rate_min: 50
+  hourly_rate_max: 150
+  preferred_job_types: ["hourly", "fixed"]
+  experience_level: "expert"
+
+scoring:
+  fast_score:
+    threshold: 40
+    weights:
+      skill_match: 0.30
+      budget_fit: 0.25
+      client_quality: 0.20
+      competition: 0.15
+      freshness: 0.10
+  deep_score:
+    model: "gpt-4o"
+    temperature: 0.3
+    min_final_score: 65
+
+proposals:
+  rag:
+    chromadb_path: "./data/chromadb"
+    similarity_top_k: 5
+  max_daily_submissions: 20
+  max_daily_spend_usd: 100.0
+  min_confidence_auto_submit: 0.75
+
+safety:
+  human_in_the_loop: true
+  daily_submission_cap: 20
+  daily_spend_cap_usd: 100.0
+
+llm:
+  default_model: "gpt-4o"
+  fast_model: "gpt-4o-mini"
+  embedding_model: "text-embedding-3-small"
+
+database:
+  url: "${DATABASE_URL:sqlite+aiosqlite:///./data/herd.db}"
+
+observability:
+  langfuse:
+    host: "http://localhost:3001"
+  growthbook:
+    api_host: "http://localhost:3100"
+
+logging:
+  level: "INFO"
+  format: "json"
