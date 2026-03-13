@@ -113,7 +113,8 @@ class AnalystScheduler:
                 "AnalystScheduler stopping — waiting for %d in-flight tasks",
                 len(self._inflight),
             )
-            await asyncio.gather(*self._inflight, return_exceptions=True)
+            done, _ = await asyncio.wait(self._inflight)
+            self._inflight -= done
         logger.info("AnalystScheduler stopped")
 
     async def _on_job_discovered(self, event: Event) -> None:
