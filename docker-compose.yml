@@ -3,10 +3,13 @@ version: "3.9"
 # ─────────────────────────────────────────────
 #  Herd AI — Full Stack
 #  Services:
-#    api        FastAPI backend         :8000
-#    dashboard  Next.js Mission Control :3001
-#    langfuse   LLM observability UI    :3002
+#    api         FastAPI backend          :8000
+#    langfuse    LLM observability UI     :3002
 #    langfuse-db PostgreSQL for Langfuse
+#
+#  Dashboards (external — no custom UI):
+#    Langfuse    http://localhost:3002     LLM traces, costs, latency
+#    AgentOps    https://app.agentops.ai  CrewAI agent run monitoring
 # ─────────────────────────────────────────────
 
 services:
@@ -30,18 +33,6 @@ services:
     depends_on:
       langfuse:
         condition: service_healthy
-
-  # ── Herd Dashboard (our custom UI) ────────
-  dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    ports:
-      - "3001:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://api:8000
-    depends_on:
-      - api
 
   # ── Langfuse — LLM Observability ──────────
   langfuse:
