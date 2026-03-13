@@ -12,10 +12,12 @@ from src.api.deps import set_db
 from src.api.routes import dashboard, jobs, proposals
 from src.core.config import load_config
 from src.core.db import Database
+from src.core.observability import init_observability
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    init_observability()
     config = load_config()
     db_path = config.database.url.replace("sqlite+aiosqlite:///", "")
     db = Database(db_path)
