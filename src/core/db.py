@@ -63,9 +63,35 @@ class Database:
         await self._conn.commit()
 
     async def run_migration(self, migration_path: str | Path) -> None:
-        """Execute a SQL migration file."""
+        """Execute a SQL migration file, skipping if already applied."""
         path = Path(migration_path)
-        sql = path.read_text()
+        name = path.name
         assert self._conn is not None, "Database not connected"
-        await self._conn.executescript(sql)
-        logger.info("Migration applied: %s", path.name)
+
+        # Ensure tracking table exists
+        await self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name       TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        await self._conn.commit()
+
+        # Skip if already applied
+        cursor = await self._conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (name,)
+        )
+        if await cursor.fetchone():
+            logger.debug("Migration already applied, skipping: %s", name)
+            return
+
+        sql = path.read_text()
+        await self._conn.executescript(sql)  # issues implicit COMMIT before running
+
+        await self._conn.execute(
+            "INSERT INTO schema_migrations (name) VALUES (?)", (name,)
+        )
+        await self._conn.commit()
+        logger.info("Migration applied: %s", name)

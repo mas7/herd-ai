@@ -74,12 +74,19 @@ def _compute_hourly(
     profile_max = profile.hourly_rate_max
     profile_mid = (profile_min + profile_max) / 2.0
 
-    # Determine job's effective rate ceiling
+    # Determine job's effective rate ceiling for viability check and base cap.
+    # Falls back to hourly_rate_min when no max is stated (e.g. "$80+/hr" listings).
     job_max: float | None = None
     if job.hourly_rate_max is not None:
         job_max = float(job.hourly_rate_max)
     elif job.hourly_rate_min is not None:
         job_max = float(job.hourly_rate_min)
+
+    # Hard bid ceiling — only when the client explicitly stated a maximum rate.
+    # hourly_rate_min alone is a client floor ("$X+/hr"), not a bid ceiling.
+    job_explicit_max: float | None = (
+        float(job.hourly_rate_max) if job.hourly_rate_max is not None else None
+    )
 
     # Hard viability check
     if job_max is not None and job_max < profile_min * 0.75:
@@ -108,11 +115,11 @@ def _compute_hourly(
     if anchor is not None:
         base = base * 0.80 + anchor * 0.20
 
-    # Clamp to sensible range — never exceed the client's stated ceiling
+    # Clamp to sensible range — never exceed the client's stated maximum rate
     floor = max(profile_min * 0.80, 1.0)
     ceiling = profile_max * 1.10
-    if job_max is not None:
-        ceiling = min(ceiling, job_max)
+    if job_explicit_max is not None:
+        ceiling = min(ceiling, job_explicit_max)
     amount = max(floor, min(ceiling, base))
 
     # Determine urgency-based rate range

@@ -225,17 +225,21 @@ class TestComputeBidPriceHourly:
         assert result.viable is True
         assert result.amount == pytest.approx(90.0, rel=0.1)  # near profile mid
 
-    def test_only_min_rate_given_used_as_ceiling(self) -> None:
-        """When only hourly_rate_min is set, it acts as the ceiling."""
+    def test_min_rate_only_does_not_cap_bid_above_it(self) -> None:
+        """When only hourly_rate_min is set (e.g. '$80+/hr'), bids are NOT
+        capped at the stated minimum — it is a client floor, not a bid ceiling.
+        The win-probability premium must be able to push the bid above it."""
         profile = _make_profile(min_rate=60.0, max_rate=120.0)
+        # profile_mid=90, job_max=80 < 90 → base = 80*0.95 = 76
+        # win_prob=90 → premium 1.08 → 76 * 1.08 = 82.08 > 80
         job = _make_job(
             job_type=JobType.HOURLY,
-            hourly_rate_min=Decimal("95"),
+            hourly_rate_min=Decimal("80"),
             hourly_rate_max=None,
         )
-        result = compute_bid_price(job, profile, _make_score(), [])
+        result = compute_bid_price(job, profile, _make_score(win_probability=90.0), [])
         assert result.viable is True
-        assert result.amount <= 95.0
+        assert result.amount > 80.0  # ceiling must NOT be clamped to the client's minimum
 
     def test_amount_clamped_to_floor(self) -> None:
         """Amount never goes below profile_min * 0.80."""
