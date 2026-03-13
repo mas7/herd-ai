@@ -105,7 +105,10 @@ class AnalystScheduler:
         """Unsubscribe from events and wait for in-flight scoring tasks."""
         self._running = False
         self._event_bus.unsubscribe("job_discovered", self._on_job_discovered)
-        if self._inflight:
+        # Yield so already-queued handlers can run and register tasks
+        # before we start draining.
+        await asyncio.sleep(0)
+        while self._inflight:
             logger.info(
                 "AnalystScheduler stopping — waiting for %d in-flight tasks",
                 len(self._inflight),
@@ -115,8 +118,6 @@ class AnalystScheduler:
 
     async def _on_job_discovered(self, event: Event) -> None:
         """Handle a job_discovered event — enqueue scoring as a background task."""
-        if not self._running:
-            return
         job_id: str = event.payload.get("job_id", "")
         if not job_id:
             logger.warning("job_discovered event missing job_id payload")
