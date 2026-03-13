@@ -55,3 +55,6 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# Mission Control (cloned by setup.sh)
+mission-control/
