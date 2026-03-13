@@ -3,10 +3,11 @@ version: "3.9"
 # ─────────────────────────────────────────────
 #  Herd AI — Full Stack
 #  Services:
-#    api        FastAPI backend         :8000
-#    dashboard  Next.js Mission Control :3001
-#    langfuse   LLM observability UI    :3002
-#    langfuse-db PostgreSQL for Langfuse
+#    api               FastAPI backend          :8000
+#    phoenix           LLM + Agent tracing UI   :6006
+#    mission-control   Agent orchestration UI   :3000
+#
+#  Run setup.sh first to clone mission-control source.
 # ─────────────────────────────────────────────
 
 services:
@@ -25,59 +26,52 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - LANGFUSE_HOST=http://langfuse:3000
     command: uvicorn src.api.app:app --host 0.0.0.0 --port 8000
     depends_on:
-      langfuse:
+      phoenix:
         condition: service_healthy
 
-  # ── Herd Dashboard (our custom UI) ────────
-  dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
+  # ── Arize Phoenix — LLM + Agent Observability ──
+  phoenix:
+    image: arizephoenix/phoenix:latest
     ports:
-      - "3001:3000"
+      - "6006:6006"   # UI + OTLP HTTP
+      - "4317:4317"   # OTLP gRPC
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8000
-    depends_on:
-      - api
-
-  # ── Langfuse — LLM Observability ──────────
-  langfuse:
-    image: langfuse/langfuse:2
-    ports:
-      - "3002:3000"
-    environment:
-      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3002
-      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-herd-langfuse-secret-change-me}
-      SALT: ${LANGFUSE_SALT:-herd-langfuse-salt-change-me}
-      TELEMETRY_ENABLED: "false"
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
-    depends_on:
-      langfuse-db:
-        condition: service_healthy
+      - PHOENIX_WORKING_DIR=/mnt/data
+    volumes:
+      - phoenix-data:/mnt/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/public/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:6006/healthz"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 20s
 
-  langfuse-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: langfuse
-      POSTGRES_DB: langfuse
+  # ── Mission Control — Agent Orchestration Dashboard ──
+  mission-control:
+    build:
+      context: ./mission-control
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
     volumes:
-      - langfuse-db:/var/lib/postgresql/data
+      - mission-control-data:/app/.data
+    environment:
+      - AUTH_USER=${MC_AUTH_USER:-admin}
+      - AUTH_PASS=${MC_AUTH_PASS:-changeme}
+      - AUTH_SECRET=${MC_AUTH_SECRET:-changeme-secret}
+      - API_KEY=${MC_API_KEY:-changeme-api-key}
+      - MC_ALLOW_ANY_HOST=true
+      - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U langfuse"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
-  langfuse-db:
+  phoenix-data:
+  mission-control-data:

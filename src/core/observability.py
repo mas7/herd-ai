@@ -1,15 +1,13 @@
 """
-Observability bootstrap — Langfuse + AgentOps.
+Observability bootstrap — Arize Phoenix (LiteLLM + CrewAI tracing).
 
 Call init_observability() once at process startup (API lifespan or CLI entry
-point). After that every LiteLLM call is automatically traced to Langfuse and
-every CrewAI agent run is automatically traced to AgentOps.
+point). After that every LiteLLM call is automatically traced to Phoenix and
+every CrewAI agent run is automatically traced to Phoenix.
 
 Environment variables (all optional — observability degrades gracefully):
-    LANGFUSE_PUBLIC_KEY   Langfuse project public key
-    LANGFUSE_SECRET_KEY   Langfuse project secret key
-    LANGFUSE_HOST         Self-hosted URL (default: https://cloud.langfuse.com)
-    AGENTOPS_API_KEY      AgentOps project API key
+    PHOENIX_COLLECTOR_ENDPOINT  OTLP HTTP endpoint (default: http://localhost:6006/v1/traces)
+    PHOENIX_PROJECT_NAME        Project name in Phoenix UI (default: herd-ai)
 """
 from __future__ import annotations
 
@@ -20,58 +18,44 @@ logger = logging.getLogger(__name__)
 
 
 def init_observability() -> None:
-    """Initialise Langfuse (via LiteLLM callback) and AgentOps."""
-    _init_langfuse()
-    _init_agentops()
+    """Initialise Arize Phoenix tracing for LiteLLM and CrewAI."""
+    _init_phoenix()
 
 
-def _init_langfuse() -> None:
+def _init_phoenix() -> None:
     """
-    Register Langfuse as a LiteLLM success/failure callback.
+    Register Phoenix as the OpenTelemetry trace collector.
 
-    LiteLLM reads LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, and
-    LANGFUSE_HOST automatically — no further config needed here.
-    All acompletion() calls across every department will be traced.
+    Instruments both LiteLLM (all acompletion calls) and CrewAI (all agent
+    and task runs) via OpenInference instrumentors. Both are traced to the
+    same Phoenix project for unified visibility.
+
+    Phoenix reads PHOENIX_COLLECTOR_ENDPOINT and PHOENIX_PROJECT_NAME
+    automatically from the environment.
     """
-    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
-    if not public_key:
-        logger.info("Langfuse disabled — set LANGFUSE_PUBLIC_KEY to enable")
-        return
+    endpoint = os.environ.get(
+        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006/v1/traces"
+    )
+    project = os.environ.get("PHOENIX_PROJECT_NAME", "herd-ai")
 
     try:
-        import litellm
+        from arize.otel import register
+        from openinference.instrumentation.crewai import CrewAIInstrumentor
+        from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
-        if "langfuse" not in litellm.success_callback:
-            litellm.success_callback.append("langfuse")
-        if "langfuse" not in litellm.failure_callback:
-            litellm.failure_callback.append("langfuse")
-
-        host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
-        logger.info("Langfuse enabled — tracing all LLM calls → %s", host)
-    except Exception:
-        logger.exception("Failed to initialise Langfuse")
-
-
-def _init_agentops() -> None:
-    """
-    Initialise AgentOps for CrewAI agent tracing.
-
-    AgentOps auto-instruments CrewAI once init() is called — no changes
-    needed in individual crew files.
-    """
-    api_key = os.environ.get("AGENTOPS_API_KEY")
-    if not api_key:
-        logger.info("AgentOps disabled — set AGENTOPS_API_KEY to enable")
-        return
-
-    try:
-        import agentops
-
-        agentops.init(
-            api_key=api_key,
-            default_tags=["herd-ai", "crewai"],
-            auto_start_session=True,
+        tracer_provider = register(
+            project_name=project,
+            endpoint=endpoint,
         )
-        logger.info("AgentOps enabled — tracing CrewAI agent runs")
+
+        LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+        CrewAIInstrumentor().instrument(
+            skip_dep_check=True,
+            tracer_provider=tracer_provider,
+        )
+
+        logger.info(
+            "Phoenix tracing enabled — project=%s endpoint=%s", project, endpoint
+        )
     except Exception:
-        logger.exception("Failed to initialise AgentOps")
+        logger.exception("Failed to initialise Phoenix tracing")

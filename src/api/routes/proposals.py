@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import get_db
 from src.core.db import Database
+from src.models.proposal import ProposalStatus
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
