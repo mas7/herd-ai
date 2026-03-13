@@ -133,7 +133,6 @@ class Positioner:
                 model=self._model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self._temperature,
-                response_format={"type": "json_object"},
             )
             content: str = response.choices[0].message.content or ""
         except Exception:

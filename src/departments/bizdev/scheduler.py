@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_PASS_RECOMMENDATIONS = {"skip"}
+_PASS_RECOMMENDATIONS = {"skip", "maybe"}  # maybe → manual review, not auto-bid
 
 
 def _pricing_confidence(bid_amount: float, job_budget_max: float | None) -> float:
