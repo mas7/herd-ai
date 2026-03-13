@@ -72,22 +72,22 @@ def _build_deep_score_task(deep_scorer: Agent, fast_score_task: Task) -> Task:
     )
 
 
-def build_analyst_crew(tools: AnalystTools, config: HerdConfig) -> Crew:
+def build_analyst_crew(tools: AnalystTools, config: HerdConfig, job_json: str) -> Crew:
     """
     Assemble and return the Analyst Crew for a single job.
 
     The crew runs sequentially: FastScorer -> DeepScorer.
     The final output is the DeepScorer's analysis JSON.
+
+    Must be called once per job — the job_json is baked into the
+    fast-score task description so the agent knows what to score.
     """
     from src.departments.analyst.agent import create_deep_scorer, create_fast_scorer
 
     fast_scorer = create_fast_scorer(fast_score_tool=tools.fast_score)
     deep_scorer = create_deep_scorer(deep_score_tool=tools.deep_score)
 
-    # Placeholder — the scheduler injects the real job JSON before kickoff.
-    # build_analyst_crew produces a template crew; callers rebuild per job
-    # or pass job_json via a separate mechanism.
-    fast_score_task = _build_fast_score_task(fast_scorer, job_json="<job_json>")
+    fast_score_task = _build_fast_score_task(fast_scorer, job_json=job_json)
     deep_score_task = _build_deep_score_task(deep_scorer, fast_score_task)
 
     crew = Crew(

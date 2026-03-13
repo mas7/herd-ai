@@ -150,16 +150,26 @@ class DeepScorer:
 
         data = _parse_llm_response(content) if content else dict(_CONSERVATIVE_SCORES)
 
-        def _clamp(v: object) -> float:
-            return max(0.0, min(100.0, float(v)))  # type: ignore[arg-type]
+        def _safe_float(v: object, default: float = 50.0) -> float:
+            try:
+                return max(0.0, min(100.0, float(v)))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return default
+
+        raw_flags = data.get("red_flags")
+        flags: list[str] = (
+            [str(f) for f in raw_flags]
+            if isinstance(raw_flags, list)
+            else []
+        )
 
         return DeepScore(
             job_id=job.id,
-            relevance=_clamp(data.get("relevance", 50)),
-            feasibility=_clamp(data.get("feasibility", 50)),
-            profitability=_clamp(data.get("profitability", 50)),
-            win_probability=_clamp(data.get("win_probability", 50)),
+            relevance=_safe_float(data.get("relevance", 50)),
+            feasibility=_safe_float(data.get("feasibility", 50)),
+            profitability=_safe_float(data.get("profitability", 50)),
+            win_probability=_safe_float(data.get("win_probability", 50)),
             reasoning=str(data.get("reasoning", _CONSERVATIVE_SCORES["reasoning"])),
-            red_flags=[str(f) for f in data.get("red_flags", [])],  # type: ignore[union-attr]
+            red_flags=flags,
             scored_at=datetime.now(timezone.utc),
         )

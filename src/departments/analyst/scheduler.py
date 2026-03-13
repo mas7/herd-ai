@@ -90,6 +90,7 @@ class AnalystScheduler:
         self._config = config
         self._deep_scorer = deep_scorer
         self._running = False
+        self._inflight: set[asyncio.Task[None]] = set()
 
     async def start(self) -> None:
         """Subscribe to job_discovered events and begin processing."""
@@ -101,9 +102,15 @@ class AnalystScheduler:
         logger.info("AnalystScheduler started — subscribed to job_discovered")
 
     async def stop(self) -> None:
-        """Unsubscribe from events."""
+        """Unsubscribe from events and wait for in-flight scoring tasks."""
         self._running = False
         self._event_bus.unsubscribe("job_discovered", self._on_job_discovered)
+        if self._inflight:
+            logger.info(
+                "AnalystScheduler stopping — waiting for %d in-flight tasks",
+                len(self._inflight),
+            )
+            await asyncio.gather(*self._inflight, return_exceptions=True)
         logger.info("AnalystScheduler stopped")
 
     async def _on_job_discovered(self, event: Event) -> None:
@@ -112,10 +119,12 @@ class AnalystScheduler:
         if not job_id:
             logger.warning("job_discovered event missing job_id payload")
             return
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._score_and_handle_errors(job_id),
             name=f"analyst-score-{job_id[:8]}",
         )
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
 
     async def _score_and_handle_errors(self, job_id: str) -> None:
         try:
