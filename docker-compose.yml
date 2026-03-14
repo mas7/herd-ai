@@ -5,7 +5,7 @@ version: "3.9"
 #  Services:
 #    api               FastAPI backend          :8000
 #    phoenix           LLM + Agent tracing UI   :6006
-#    mission-control   Agent orchestration UI   :3000
+#    mission-control   Agent orchestration UI   :3010
 #
 #  Run setup.sh first to clone mission-control source.
 # ─────────────────────────────────────────────
@@ -42,7 +42,7 @@ services:
     volumes:
       - phoenix-data:/mnt/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:6006/healthz"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/healthz')"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -54,7 +54,7 @@ services:
       context: ./mission-control
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3010:3000"
     volumes:
       - mission-control-data:/app/.data
     environment:
@@ -66,7 +66,7 @@ services:
       - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/status"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3010/api/status"]
       interval: 30s
       timeout: 10s
       retries: 3
