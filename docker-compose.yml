@@ -26,6 +26,10 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+      - PHOENIX_PROJECT_NAME=herd-ai
+      - MC_BASE_URL=http://mission-control:3000
+      - MC_API_KEY=${MC_API_KEY:-changeme-api-key}
     command: uvicorn src.api.app:app --host 0.0.0.0 --port 8000
     depends_on:
       phoenix:
@@ -64,9 +68,11 @@ services:
       - API_KEY=${MC_API_KEY:-changeme-api-key}
       - MC_ALLOW_ANY_HOST=true
       - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+      - NEXT_PUBLIC_HERD_MODE=true
+      - HERD_API_URL=http://api:8000
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3010/api/status"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/status"]
       interval: 30s
       timeout: 10s
       retries: 3
